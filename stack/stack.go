@@ -2,10 +2,13 @@ package main
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigateway"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awscognito"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awss3"
-
-	// "github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awssns"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
+	awslambdago "github.com/aws/aws-cdk-go/awscdklambdagoalpha/v2"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
 )
@@ -15,16 +18,90 @@ type ClipfyStackProps struct {
 }
 
 type CognitoOutput struct {
-	UserPoolId       *string
+	UserPool         awscognito.UserPool
 	UserPoolClientId *string
 }
 
-func createBucket(stack awscdk.Stack) *awss3.Bucket {
+type BrokerOutput struct {
+	Queue awssqs.Queue
+	Topic awssns.Topic
+}
+
+func createBroker(stack awscdk.Stack) *BrokerOutput {
+	dlq := awssqs.NewQueue(stack, jsii.String("ClipfyDLQ"), &awssqs.QueueProps{
+		QueueName: jsii.String("clipfy-dlq"),
+	})
+	queue := awssqs.NewQueue(stack, jsii.String("ClipfyQueue"), &awssqs.QueueProps{
+		QueueName:                 jsii.String("clipfy-queue.fifo"),
+		Fifo:                      jsii.Bool(true),
+		ContentBasedDeduplication: jsii.Bool(true),
+		DeadLetterQueue: &awssqs.DeadLetterQueue{
+			Queue:           dlq,
+			MaxReceiveCount: jsii.Number(3),
+		},
+	})
+
+	topic := awssns.NewTopic(stack, jsii.String("ClipfyTopic"), &awssns.TopicProps{
+		TopicName: jsii.String("clipfy-topic.fifo"),
+		Fifo:      jsii.Bool(true),
+	})
+
+	awssns.NewSubscription(stack, jsii.String("ClipfySubscription"), &awssns.SubscriptionProps{
+		RawMessageDelivery: jsii.Bool(true),
+		Topic:              topic,
+		Endpoint:           queue.QueueArn(),
+		Protocol:           awssns.SubscriptionProtocol_SQS,
+	})
+
+	return &BrokerOutput{
+		Queue: queue,
+		Topic: topic,
+	}
+}
+
+func createAPI(stack awscdk.Stack) awslambdago.GoFunction {
+	lambda := awslambdago.NewGoFunction(stack, jsii.String("GoFunction"), &awslambdago.GoFunctionProps{
+		Entry:        jsii.String("lambda"),
+		FunctionName: jsii.String("clipfy-api"),
+		MemorySize:   jsii.Number(256),
+		Runtime:      awslambda.Runtime_GO_1_X(),
+	})
+	// add api gateway integration to proxy requests to the lambda
+	awsapigateway.NewLambdaRestApi(stack, jsii.String("HelloWorldApi"), &awsapigateway.LambdaRestApiProps{
+		Handler: lambda,
+		Proxy:   jsii.Bool(true),
+	})
+
+	return lambda
+}
+
+func createFileProcessingLambda(stack awscdk.Stack) awslambdago.GoFunction {
+	lambda := awslambdago.NewGoFunction(stack, jsii.String("FileProcessingLambda"), &awslambdago.GoFunctionProps{
+		Entry:        jsii.String("lambda"),
+		FunctionName: jsii.String("clipfy-file-processing"),
+		MemorySize:   jsii.Number(1024),
+		Runtime:      awslambda.Runtime_GO_1_X(),
+	})
+
+	return lambda
+}
+
+func createCoginitoLambda(stack awscdk.Stack) awslambdago.GoFunction {
+	lambda := awslambdago.NewGoFunction(stack, jsii.String("CognitoLambda"), &awslambdago.GoFunctionProps{
+		Entry:        jsii.String("lambda"),
+		FunctionName: jsii.String("clipfy-cognito"),
+		Runtime:      awslambda.Runtime_GO_1_X(),
+	})
+
+	return lambda
+}
+
+func createBucket(stack awscdk.Stack) awss3.Bucket {
 	bucket := awss3.NewBucket(stack, jsii.String("clipfy-videos-bucket"), &awss3.BucketProps{
 		BucketName: jsii.String("clipfy-videos"),
 	})
 
-	return &bucket
+	return bucket
 }
 
 func createCognito(stack awscdk.Stack) *CognitoOutput {
@@ -53,7 +130,7 @@ func createCognito(stack awscdk.Stack) *CognitoOutput {
 	})
 
 	return &CognitoOutput{
-		UserPoolId:       userPool.UserPoolId(),
+		UserPool:         userPool,
 		UserPoolClientId: userPoolClient.UserPoolClientId(),
 	}
 }
@@ -65,8 +142,29 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
-	createBucket(stack)
-	createCognito(stack)
+	bucket := createBucket(stack)
+	cognito := createCognito(stack)
+	broker := createBroker(stack)
+	api := createAPI(stack)
+	fileProcessing := createFileProcessingLambda(stack)
+	cognitoLambda := createCoginitoLambda(stack)
+
+	cognito.UserPool.AddTrigger(awscognito.UserPoolOperation_PRE_SIGN_UP(), cognitoLambda, awscognito.LambdaVersion_V1_0)
+
+	broker.Topic.GrantPublish(api)
+	broker.Queue.GrantSendMessages(api)
+	broker.Queue.GrantConsumeMessages(fileProcessing)
+	bucket.GrantReadWrite(fileProcessing, nil)
+
+	api.AddEnvironment(jsii.String("USER_POOL_ID"), cognito.UserPool.UserPoolId(), nil)
+	api.AddEnvironment(jsii.String("USER_POOL_CLIENT_ID"), cognito.UserPoolClientId, nil)
+	api.AddEnvironment(jsii.String("QUEUE_URL"), broker.Queue.QueueUrl(), nil)
+	api.AddEnvironment(jsii.String("TOPIC_ARN"), broker.Topic.TopicArn(), nil)
+	api.AddEnvironment(jsii.String("BUCKET_NAME"), bucket.BucketName(), nil)
+
+	fileProcessing.AddEnvironment(jsii.String("QUEUE_URL"), broker.Queue.QueueUrl(), nil)
+	fileProcessing.AddEnvironment(jsii.String("TOPIC_ARN"), broker.Topic.TopicArn(), nil)
+	fileProcessing.AddEnvironment(jsii.String("BUCKET_NAME"), bucket.BucketName(), nil)
 
 	return stack
 }
