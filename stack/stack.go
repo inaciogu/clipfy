@@ -3,7 +3,10 @@ package main
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigateway"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awscloudfront"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awscloudfrontorigins"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awscognito"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsdynamodb"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awss3"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awssns"
@@ -27,9 +30,15 @@ type BrokerOutput struct {
 	Topic awssns.Topic
 }
 
+type StorageOutput struct {
+	Bucket awss3.Bucket
+	CDN    awscloudfront.Distribution
+}
+
 func createBroker(stack awscdk.Stack) *BrokerOutput {
 	dlq := awssqs.NewQueue(stack, jsii.String("ClipfyDLQ"), &awssqs.QueueProps{
-		QueueName: jsii.String("clipfy-dlq"),
+		QueueName: jsii.String("clipfy-dlq.fifo"),
+		Fifo:      jsii.Bool(true),
 	})
 	queue := awssqs.NewQueue(stack, jsii.String("ClipfyQueue"), &awssqs.QueueProps{
 		QueueName:                 jsii.String("clipfy-queue.fifo"),
@@ -60,14 +69,14 @@ func createBroker(stack awscdk.Stack) *BrokerOutput {
 }
 
 func createAPI(stack awscdk.Stack) awslambdago.GoFunction {
-	lambda := awslambdago.NewGoFunction(stack, jsii.String("GoFunction"), &awslambdago.GoFunctionProps{
-		Entry:        jsii.String("lambda"),
+	lambda := awslambdago.NewGoFunction(stack, jsii.String("API"), &awslambdago.GoFunctionProps{
+		Entry:        jsii.String("cmd/api"),
 		FunctionName: jsii.String("clipfy-api"),
 		MemorySize:   jsii.Number(256),
-		Runtime:      awslambda.Runtime_GO_1_X(),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 	})
 	// add api gateway integration to proxy requests to the lambda
-	awsapigateway.NewLambdaRestApi(stack, jsii.String("HelloWorldApi"), &awsapigateway.LambdaRestApiProps{
+	awsapigateway.NewLambdaRestApi(stack, jsii.String("RestAPI"), &awsapigateway.LambdaRestApiProps{
 		Handler: lambda,
 		Proxy:   jsii.Bool(true),
 	})
@@ -77,10 +86,10 @@ func createAPI(stack awscdk.Stack) awslambdago.GoFunction {
 
 func createFileProcessingLambda(stack awscdk.Stack) awslambdago.GoFunction {
 	lambda := awslambdago.NewGoFunction(stack, jsii.String("FileProcessingLambda"), &awslambdago.GoFunctionProps{
-		Entry:        jsii.String("lambda"),
+		Entry:        jsii.String("cmd/file_processing"),
 		FunctionName: jsii.String("clipfy-file-processing"),
 		MemorySize:   jsii.Number(1024),
-		Runtime:      awslambda.Runtime_GO_1_X(),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 	})
 
 	return lambda
@@ -88,20 +97,33 @@ func createFileProcessingLambda(stack awscdk.Stack) awslambdago.GoFunction {
 
 func createCoginitoLambda(stack awscdk.Stack) awslambdago.GoFunction {
 	lambda := awslambdago.NewGoFunction(stack, jsii.String("CognitoLambda"), &awslambdago.GoFunctionProps{
-		Entry:        jsii.String("lambda"),
+		Entry:        jsii.String("cmd/cognito"),
 		FunctionName: jsii.String("clipfy-cognito"),
-		Runtime:      awslambda.Runtime_GO_1_X(),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 	})
 
 	return lambda
 }
 
-func createBucket(stack awscdk.Stack) awss3.Bucket {
-	bucket := awss3.NewBucket(stack, jsii.String("clipfy-videos-bucket"), &awss3.BucketProps{
+func createStorage(stack awscdk.Stack) *StorageOutput {
+	bucket := awss3.NewBucket(stack, jsii.String("Bucket"), &awss3.BucketProps{
 		BucketName: jsii.String("clipfy-videos"),
 	})
+	oai := awscloudfront.NewOriginAccessIdentity(stack, jsii.String("OAI"), &awscloudfront.OriginAccessIdentityProps{})
+	bucket.GrantRead(oai, nil)
 
-	return bucket
+	distribution := awscloudfront.NewDistribution(stack, jsii.String("CDN"), &awscloudfront.DistributionProps{
+		DefaultBehavior: &awscloudfront.BehaviorOptions{
+			Origin: awscloudfrontorigins.NewS3Origin(bucket, &awscloudfrontorigins.S3OriginProps{
+				OriginAccessIdentity: oai,
+			}),
+		},
+	})
+
+	return &StorageOutput{
+		Bucket: bucket,
+		CDN:    distribution,
+	}
 }
 
 func createCognito(stack awscdk.Stack) *CognitoOutput {
@@ -135,6 +157,38 @@ func createCognito(stack awscdk.Stack) *CognitoOutput {
 	}
 }
 
+func createTable(stack awscdk.Stack) {
+	awsdynamodb.NewTableV2(stack, jsii.String("Table"), &awsdynamodb.TablePropsV2{
+		TableName: jsii.String("clipfy"),
+		Billing: awsdynamodb.Billing_OnDemand(&awsdynamodb.MaxThroughputProps{
+			MaxReadRequestUnits:  jsii.Number(100),
+			MaxWriteRequestUnits: jsii.Number(115),
+		}),
+		PartitionKey: &awsdynamodb.Attribute{
+			Name: jsii.String("pk"),
+			Type: awsdynamodb.AttributeType_STRING,
+		},
+		SortKey: &awsdynamodb.Attribute{
+			Name: jsii.String("sk"),
+			Type: awsdynamodb.AttributeType_STRING,
+		},
+		GlobalSecondaryIndexes: &[]*awsdynamodb.GlobalSecondaryIndexPropsV2{
+			{
+				IndexName: jsii.String("gsi1"),
+				PartitionKey: &awsdynamodb.Attribute{
+					Name: jsii.String("gsi1pk"),
+					Type: awsdynamodb.AttributeType_STRING,
+				},
+				SortKey: &awsdynamodb.Attribute{
+					Name: jsii.String("gsi1sk"),
+					Type: awsdynamodb.AttributeType_STRING,
+				},
+			},
+		},
+		TimeToLiveAttribute: jsii.String("ttl"),
+	})
+}
+
 func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackProps) awscdk.Stack {
 	var sprops awscdk.StackProps
 	if props != nil {
@@ -142,7 +196,7 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
-	bucket := createBucket(stack)
+	storage := createStorage(stack)
 	cognito := createCognito(stack)
 	broker := createBroker(stack)
 	api := createAPI(stack)
@@ -154,17 +208,18 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	broker.Topic.GrantPublish(api)
 	broker.Queue.GrantSendMessages(api)
 	broker.Queue.GrantConsumeMessages(fileProcessing)
-	bucket.GrantReadWrite(fileProcessing, nil)
+	storage.Bucket.GrantReadWrite(fileProcessing, nil)
 
 	api.AddEnvironment(jsii.String("USER_POOL_ID"), cognito.UserPool.UserPoolId(), nil)
 	api.AddEnvironment(jsii.String("USER_POOL_CLIENT_ID"), cognito.UserPoolClientId, nil)
 	api.AddEnvironment(jsii.String("QUEUE_URL"), broker.Queue.QueueUrl(), nil)
 	api.AddEnvironment(jsii.String("TOPIC_ARN"), broker.Topic.TopicArn(), nil)
-	api.AddEnvironment(jsii.String("BUCKET_NAME"), bucket.BucketName(), nil)
+	api.AddEnvironment(jsii.String("BUCKET_NAME"), storage.Bucket.BucketName(), nil)
+	api.AddEnvironment(jsii.String("CDN_URL"), storage.CDN.DomainName(), nil)
 
 	fileProcessing.AddEnvironment(jsii.String("QUEUE_URL"), broker.Queue.QueueUrl(), nil)
 	fileProcessing.AddEnvironment(jsii.String("TOPIC_ARN"), broker.Topic.TopicArn(), nil)
-	fileProcessing.AddEnvironment(jsii.String("BUCKET_NAME"), bucket.BucketName(), nil)
+	fileProcessing.AddEnvironment(jsii.String("BUCKET_NAME"), storage.Bucket.BucketName(), nil)
 
 	return stack
 }

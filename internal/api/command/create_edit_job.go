@@ -6,7 +6,7 @@ type CreateEditJobCommand struct {
 type CreateEditJobCommandInput struct {
 	Subtitle         bool   `json:"subtitle"`
 	SegmentsDuration int    `json:"segments_duration"` // in seconds
-	FileName         string `json:"file_name"`
+	FileURL          string `json:"file_url"`
 }
 
 func (u *CreateEditJobCommand) Execute(input *CreateEditJobCommandInput) {
