@@ -216,6 +216,7 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	api.AddEnvironment(jsii.String("TOPIC_ARN"), broker.Topic.TopicArn(), nil)
 	api.AddEnvironment(jsii.String("BUCKET_NAME"), storage.Bucket.BucketName(), nil)
 	api.AddEnvironment(jsii.String("CDN_URL"), storage.CDN.DomainName(), nil)
+	api.AddEnvironment(jsii.String("ENV"), jsii.String("PRODUCTION"), nil)
 
 	fileProcessing.AddEnvironment(jsii.String("QUEUE_URL"), broker.Queue.QueueUrl(), nil)
 	fileProcessing.AddEnvironment(jsii.String("TOPIC_ARN"), broker.Topic.TopicArn(), nil)
