@@ -25,9 +25,8 @@ func (u *UploadHandler) Handle(c *gin.Context) {
 	defer file.Close()
 
 	input := &command.UploadFileCommandInput{
-		FileName:      header.Filename,
-		File:          file,
-		ContentLength: header.Size,
+		FileName: header.Filename,
+		File:     file,
 	}
 
 	u.uploadFile.Execute(input)

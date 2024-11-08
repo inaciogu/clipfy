@@ -11,9 +11,8 @@ type UploadFileCommand struct {
 }
 
 type UploadFileCommandInput struct {
-	FileName      string    `json:"file_name"`
-	File          io.Reader `json:"file"`
-	ContentLength int64     `json:"content_length"`
+	FileName string    `json:"file_name"`
+	File     io.Reader `json:"file"`
 }
 
 func NewUploadFileCommand(storage *service.StorageService) *UploadFileCommand {
@@ -23,7 +22,7 @@ func NewUploadFileCommand(storage *service.StorageService) *UploadFileCommand {
 }
 
 func (u *UploadFileCommand) Execute(input *UploadFileCommandInput) {
-	uploadOutput, err := u.storage.UploadFile(&service.UploadFileInput{
+	err := u.storage.UploadFile(&service.UploadFileInput{
 		File:     input.File,
 		FileName: input.FileName,
 	})
@@ -33,7 +32,4 @@ func (u *UploadFileCommand) Execute(input *UploadFileCommandInput) {
 	}
 
 	fmt.Println("File uploaded successfully")
-
-	// save file url in database
-	fmt.Println(uploadOutput.FileURL)
 }
