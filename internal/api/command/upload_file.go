@@ -2,7 +2,6 @@ package command
 
 import (
 	"clipfy/internal/api/service"
-	"fmt"
 	"io"
 )
 
@@ -11,8 +10,10 @@ type UploadFileCommand struct {
 }
 
 type UploadFileCommandInput struct {
-	FileName string    `json:"file_name"`
-	File     io.Reader `json:"file"`
+	FileName      string    `json:"file_name"`
+	File          io.Reader `json:"file"`
+	ContentType   string    `json:"content_type"`
+	ContentLength int64     `json:"content_length"`
 }
 
 func NewUploadFileCommand(storage *service.StorageService) *UploadFileCommand {
@@ -23,13 +24,11 @@ func NewUploadFileCommand(storage *service.StorageService) *UploadFileCommand {
 
 func (u *UploadFileCommand) Execute(input *UploadFileCommandInput) {
 	err := u.storage.UploadFile(&service.UploadFileInput{
-		File:     input.File,
-		FileName: input.FileName,
+		File:          input.File,
+		FileName:      input.FileName,
+		ContentLength: input.ContentLength,
 	})
 	if err != nil {
-		fmt.Println("Error uploading file")
 		panic(err)
 	}
-
-	fmt.Println("File uploaded successfully")
 }
