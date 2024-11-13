@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigateway"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awscloudfront"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awscloudfrontorigins"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awscognito"
@@ -75,12 +74,18 @@ func createAPI(stack awscdk.Stack) awslambdago.GoFunction {
 		MemorySize:   jsii.Number(256),
 		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 	})
-	// add api gateway integration to proxy requests to the lambda
-	awsapigateway.NewLambdaRestApi(stack, jsii.String("RestAPI"), &awsapigateway.LambdaRestApiProps{
-		Handler: lambda,
-		Proxy:   jsii.Bool(true),
+
+	functionURL := lambda.AddFunctionUrl(&awslambda.FunctionUrlOptions{
+		Cors: &awslambda.FunctionUrlCorsOptions{
+			AllowedHeaders: jsii.Strings("*"),
+			AllowedOrigins: jsii.Strings("*"),
+		},
+		AuthType: awslambda.FunctionUrlAuthType_NONE,
 	})
 
+	awscdk.NewCfnOutput(stack, jsii.String("APIURL"), &awscdk.CfnOutputProps{
+		Value: functionURL.Url(),
+	})
 	return lambda
 }
 
@@ -209,6 +214,7 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	broker.Queue.GrantSendMessages(api)
 	broker.Queue.GrantConsumeMessages(fileProcessing)
 	storage.Bucket.GrantReadWrite(fileProcessing, nil)
+	storage.Bucket.GrantWrite(api, nil, nil)
 
 	api.AddEnvironment(jsii.String("USER_POOL_ID"), cognito.UserPool.UserPoolId(), nil)
 	api.AddEnvironment(jsii.String("USER_POOL_CLIENT_ID"), cognito.UserPoolClientId, nil)

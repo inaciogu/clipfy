@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gin-gonic/gin"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -18,6 +19,7 @@ import (
 
 var ginLambda *ginadapter.GinLambda
 var awsCfg aws.Config
+var router *gin.Engine
 
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.Background())
@@ -28,9 +30,32 @@ func init() {
 	awsCfg = cfg
 }
 
-func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	// If no name is provided in the HTTP request body, throw an error
-	return ginLambda.ProxyWithContext(ctx, req)
+func Handler(ctx context.Context, req events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
+	// Converte o evento LambdaFunctionURLRequest para um request compatível com o Gin
+	proxyReq := events.APIGatewayProxyRequest{
+		HTTPMethod:            req.RequestContext.HTTP.Method,
+		Path:                  req.RawPath,
+		Headers:               req.Headers,
+		Body:                  req.Body,
+		IsBase64Encoded:       req.IsBase64Encoded,
+		QueryStringParameters: req.QueryStringParameters,
+	}
+
+	// Chama o adaptador do Gin com o proxy request
+	resp, err := ginLambda.ProxyWithContext(ctx, proxyReq)
+	if err != nil {
+		return events.LambdaFunctionURLResponse{
+			StatusCode: http.StatusInternalServerError,
+			Body:       `{"message": "Internal Server Error"}`,
+		}, nil
+	}
+
+	// Converte a resposta do proxy para o formato LambdaFunctionURLResponse
+	return events.LambdaFunctionURLResponse{
+		StatusCode: resp.StatusCode,
+		Headers:    resp.Headers,
+		Body:       resp.Body,
+	}, nil
 }
 
 func main() {

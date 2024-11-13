@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"io"
 	"net/http"
+	"os"
 )
 
 type StorageService struct {
@@ -27,7 +28,7 @@ func NewS3Service(cfg aws.Config) *StorageService {
 	}
 }
 
-func (s *StorageService) UploadFile(input *UploadFileInput) error {
+func (s *StorageService) UploadFile(input *UploadFileInput) (string, error) {
 	presigner := s3.NewPresignClient(s.client)
 
 	presigned, err := presigner.PresignPutObject(context.TODO(), &s3.PutObjectInput{
@@ -36,14 +37,14 @@ func (s *StorageService) UploadFile(input *UploadFileInput) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed generation upload URL: %v", err)
+		return "", fmt.Errorf("failed generation upload URL: %v", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPut, presigned.URL, input.File)
 	req.ContentLength = input.ContentLength
 
 	if err != nil {
-		return fmt.Errorf("failed to create request for upload: %v", err)
+		return "", fmt.Errorf("failed to create request for upload: %v", err)
 	}
 
 	client := &http.Client{}
@@ -51,15 +52,20 @@ func (s *StorageService) UploadFile(input *UploadFileInput) error {
 	res, err := client.Do(req)
 
 	if err != nil {
-		return fmt.Errorf("error uploading file: %v", err)
+		return "", fmt.Errorf("error uploading file: %v", err)
 	}
 
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(res.Body)
-		return fmt.Errorf("failed to upload file: %v - %s", res.Status, body)
+		return "", fmt.Errorf("failed to upload file: %v - %s", res.Status, body)
 	}
 
-	return nil
+	return buildURL(input.FileName), nil
+}
+
+func buildURL(key string) string {
+	cdnURL := os.Getenv("CDN_URL")
+	return fmt.Sprintf("%s/%s", cdnURL, key)
 }

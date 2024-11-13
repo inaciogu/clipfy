@@ -31,9 +31,7 @@ func (u *UploadHandler) Handle(c *gin.Context) {
 		ContentLength: header.Size,
 	}
 
-	u.uploadFile.Execute(input)
+	output := u.uploadFile.Execute(input)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "File uploaded successfully",
-	})
+	c.JSON(http.StatusOK, output)
 }
