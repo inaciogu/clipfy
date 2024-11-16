@@ -7,31 +7,23 @@ import (
 )
 
 type UploadHandler struct {
-	uploadFile *command.UploadFileCommand
+	uploadFile *command.GenUploadFileURLCommand
 }
 
-func NewUploadHandler(uploadFile *command.UploadFileCommand) *UploadHandler {
+func NewUploadHandler(uploadFile *command.GenUploadFileURLCommand) *UploadHandler {
 	return &UploadHandler{
 		uploadFile: uploadFile,
 	}
 }
 
 func (u *UploadHandler) Handle(c *gin.Context) {
-	file, header, err := c.Request.FormFile("file")
-	if err != nil {
-		http.Error(c.Writer, "Error getting file from form", http.StatusBadRequest)
+	var input command.GenUploadFileURLCommandInput
+	if err := c.BindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	defer file.Close()
 
-	input := &command.UploadFileCommandInput{
-		FileName:      header.Filename,
-		File:          file,
-		ContentType:   c.Request.Header.Get("Content-Type"),
-		ContentLength: header.Size,
-	}
-
-	output := u.uploadFile.Execute(input)
+	output := u.uploadFile.Execute(&input)
 
 	c.JSON(http.StatusOK, output)
 }

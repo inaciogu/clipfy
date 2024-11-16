@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"io"
-	"net/http"
 	"os"
 )
 
@@ -15,10 +13,13 @@ type StorageService struct {
 	cfg    aws.Config
 }
 
-type UploadFileInput struct {
-	FileName      string    `json:"file_name"`
-	File          io.Reader `json:"file"`
-	ContentLength int64     `json:"content_length"`
+type GeneratePresignedUploadURLInput struct {
+	FileName string `json:"file_name"`
+}
+
+type GeneratePresignedUploadURLOutput struct {
+	UploadURL string `json:"upload_url"`
+	FileURL   string `json:"file_url"`
 }
 
 func NewS3Service(cfg aws.Config) *StorageService {
@@ -28,7 +29,7 @@ func NewS3Service(cfg aws.Config) *StorageService {
 	}
 }
 
-func (s *StorageService) UploadFile(input *UploadFileInput) (string, error) {
+func (s *StorageService) GeneratePresignedUploadURL(input *GeneratePresignedUploadURLInput) (*GeneratePresignedUploadURLOutput, error) {
 	presigner := s3.NewPresignClient(s.client)
 
 	presigned, err := presigner.PresignPutObject(context.TODO(), &s3.PutObjectInput{
@@ -37,32 +38,13 @@ func (s *StorageService) UploadFile(input *UploadFileInput) (string, error) {
 	})
 
 	if err != nil {
-		return "", fmt.Errorf("failed generation upload URL: %v", err)
+		return nil, fmt.Errorf("failed generation upload URL: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, presigned.URL, input.File)
-	req.ContentLength = input.ContentLength
-
-	if err != nil {
-		return "", fmt.Errorf("failed to create request for upload: %v", err)
-	}
-
-	client := &http.Client{}
-
-	res, err := client.Do(req)
-
-	if err != nil {
-		return "", fmt.Errorf("error uploading file: %v", err)
-	}
-
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(res.Body)
-		return "", fmt.Errorf("failed to upload file: %v - %s", res.Status, body)
-	}
-
-	return buildURL(input.FileName), nil
+	return &GeneratePresignedUploadURLOutput{
+		UploadURL: presigned.URL,
+		FileURL:   buildURL(input.FileName),
+	}, nil
 }
 
 func buildURL(key string) string {
