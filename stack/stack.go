@@ -113,6 +113,19 @@ func createCoginitoLambda(stack awscdk.Stack) awslambdago.GoFunction {
 func createStorage(stack awscdk.Stack) *StorageOutput {
 	bucket := awss3.NewBucket(stack, jsii.String("Bucket"), &awss3.BucketProps{
 		BucketName: jsii.String("clipfy-videos"),
+		Cors: &[]*awss3.CorsRule{
+			{
+				AllowedOrigins: jsii.Strings("*"),
+				AllowedHeaders: jsii.Strings("*"),
+				AllowedMethods: &[]awss3.HttpMethods{
+					awss3.HttpMethods_GET,
+					awss3.HttpMethods_POST,
+					awss3.HttpMethods_PUT,
+					awss3.HttpMethods_DELETE,
+					awss3.HttpMethods_HEAD,
+				},
+			},
+		},
 	})
 	oai := awscloudfront.NewOriginAccessIdentity(stack, jsii.String("OAI"), &awscloudfront.OriginAccessIdentityProps{})
 	bucket.GrantRead(oai, nil)

@@ -6,8 +6,9 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
-func Handler(ctx context.Context, event events.CognitoEvent) error {
-	return nil
+func Handler(ctx context.Context, event events.CognitoEventUserPoolsPreSignup) (events.CognitoEventUserPoolsPreSignup, error) {
+	event.Response.AutoConfirmUser = true
+	return event, nil
 }
 
 func main() {
