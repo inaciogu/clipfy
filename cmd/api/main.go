@@ -3,6 +3,7 @@ package main
 import (
 	"clipfy/internal/api/command"
 	"clipfy/internal/api/handler"
+	"clipfy/internal/api/middleware"
 	"clipfy/internal/api/service"
 	"context"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -63,6 +64,8 @@ func main() {
 	storageService := service.NewS3Service(awsCfg)
 	uploadCommand := command.NewUploadFileCommand(storageService)
 	uploadHandler := handler.NewUploadHandler(uploadCommand)
+
+	r.Use(middleware.AuthMiddleware())
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
