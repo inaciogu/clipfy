@@ -3,6 +3,7 @@ package handler
 import (
 	"clipfy/internal/api/command"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 )
 
@@ -22,6 +23,10 @@ func (u *UploadHandler) Handle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// get from context key user
+	user := c.MustGet("user").(jwt.MapClaims)
+	input.UserID = user["sub"].(string)
 
 	output := u.uploadFile.Execute(&input)
 

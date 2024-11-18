@@ -1,12 +1,17 @@
 package middleware
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"os"
 	"strings"
@@ -30,6 +35,42 @@ type ContextKey string
 
 const UserContextKey ContextKey = "user"
 
+func parseRSAPublicKey(modulus string) (*rsa.PublicKey, error) {
+	nBytes, err := base64.RawURLEncoding.DecodeString(modulus)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao decodificar modulus: %v", err)
+	}
+
+	eBytes, err := base64.RawURLEncoding.DecodeString("AQAB") // Exponent is usually fixed as 65537 (0x10001)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao decodificar exponent: %v", err)
+	}
+
+	n := new(big.Int).SetBytes(nBytes)
+	e := new(big.Int).SetBytes(eBytes).Int64()
+
+	pubKey := &rsa.PublicKey{
+		N: n,
+		E: int(e),
+	}
+
+	pubKeyPEM, err := encodeRSAPublicKeyToPEM(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao codificar chave pública: %v", err)
+	}
+
+	return jwt.ParseRSAPublicKeyFromPEM(pubKeyPEM)
+}
+
+func encodeRSAPublicKeyToPEM(pubKey *rsa.PublicKey) ([]byte, error) {
+	pubKeyBytes := x509.MarshalPKCS1PublicKey(pubKey)
+	pubKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PUBLIC KEY",
+		Bytes: pubKeyBytes,
+	})
+	return pubKeyPEM, nil
+}
+
 // Função para validar o JWT (como no exemplo anterior)
 func validateAndDecodeJWT(tokenString, jwksURL string) (*jwt.Token, jwt.MapClaims, error) {
 	jwks, err := fetchJWKS(jwksURL)
@@ -41,8 +82,7 @@ func validateAndDecodeJWT(tokenString, jwksURL string) (*jwt.Token, jwt.MapClaim
 	keyFunc := func(token *jwt.Token) (interface{}, error) {
 		if kid, ok := token.Header["kid"].(string); ok {
 			if modulus, exists := jwks[kid]; exists {
-				// Converta o Modulus para uma chave pública
-				return jwt.ParseRSAPublicKeyFromPEM([]byte(modulus))
+				return parseRSAPublicKey(modulus)
 			}
 		}
 		return nil, errors.New("chave pública não encontrada para o kid")
@@ -125,6 +165,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Validar o token JWT
 		_, claims, err := validateAndDecodeJWT(tokenString, cognitoConfig.JWKSURL)
 		if err != nil {
+			fmt.Printf("falha ao validar token JWT: %v", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token invalido"})
 			c.Abort()
 			return
