@@ -14,8 +14,8 @@ type EventsService struct {
 }
 
 type PublishMessageInput struct {
-	message  string
-	metadata map[string]string
+	Message  string
+	Metadata map[string]string
 }
 
 func NewEventsService(sns *sns.Client) *EventsService {
@@ -28,9 +28,9 @@ func (s *EventsService) Emit(input *PublishMessageInput) error {
 	topicArn := os.Getenv("TOPIC_ARN")
 
 	_, err := s.sns.Publish(context.TODO(), &sns.PublishInput{
-		Message:           &input.message,
+		Message:           &input.Message,
 		TopicArn:          aws.String(topicArn),
-		MessageAttributes: buildMetadata(input.metadata),
+		MessageAttributes: buildMetadata(input.Metadata),
 	})
 
 	if err != nil {
