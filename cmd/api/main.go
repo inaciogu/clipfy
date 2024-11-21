@@ -25,8 +25,15 @@ func init() {
 
 	router := gin.Default()
 	storageService := service.NewS3Service(awsCfg)
+	editionJobsService := service.NewEditionJobService(awsCfg)
+	eventsService := service.NewEventsService(awsCfg)
+
 	uploadCommand := command.NewUploadFileCommand(storageService)
+	createEditionJob := command.NewCreateEditionJob(editionJobsService, eventsService)
+	listEditionJobs := command.NewListEditionJobs(editionJobsService)
+
 	uploadHandler := handler.NewUploadHandler(uploadCommand)
+	editionJobsHandler := handler.NewEditionJobsHandler(createEditionJob, listEditionJobs)
 
 	router.Use(middleware.AuthMiddleware())
 
@@ -38,6 +45,8 @@ func init() {
 	router.POST("/upload", func(c *gin.Context) {
 		uploadHandler.Handle(c)
 	})
+	router.POST("/edition-jobs", editionJobsHandler.CreateEditionJob)
+	router.GET("/edition-jobs", editionJobsHandler.ListEditionJobs)
 
 	ginLambda = ginadapter.New(router)
 }

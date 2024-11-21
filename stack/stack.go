@@ -175,8 +175,8 @@ func createCognito(stack awscdk.Stack) *CognitoOutput {
 	}
 }
 
-func createTable(stack awscdk.Stack) {
-	awsdynamodb.NewTableV2(stack, jsii.String("Table"), &awsdynamodb.TablePropsV2{
+func createTable(stack awscdk.Stack) awsdynamodb.TableV2 {
+	return awsdynamodb.NewTableV2(stack, jsii.String("Table"), &awsdynamodb.TablePropsV2{
 		TableName: jsii.String("clipfy"),
 		Billing: awsdynamodb.Billing_OnDemand(&awsdynamodb.MaxThroughputProps{
 			MaxReadRequestUnits:  jsii.Number(100),
@@ -217,6 +217,7 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	storage := createStorage(stack)
 	cognito := createCognito(stack)
 	broker := createBroker(stack)
+	table := createTable(stack)
 	api := createAPI(stack)
 	fileProcessing := createFileProcessingLambda(stack)
 	cognitoLambda := createCoginitoLambda(stack)
@@ -228,6 +229,7 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	broker.Queue.GrantConsumeMessages(fileProcessing)
 	storage.Bucket.GrantReadWrite(fileProcessing, nil)
 	storage.Bucket.GrantWrite(api, nil, nil)
+	table.GrantReadWriteData(api)
 
 	api.AddEnvironment(jsii.String("USER_POOL_ID"), cognito.UserPool.UserPoolId(), nil)
 	api.AddEnvironment(jsii.String("USER_POOL_CLIENT_ID"), cognito.UserPoolClientId, nil)

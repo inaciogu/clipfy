@@ -14,14 +14,14 @@ type EditionJobService struct {
 	dynamodb *dynamodb.Client
 }
 
-func NewEditionJobService(dynamodb *dynamodb.Client) *EditionJobService {
+func NewEditionJobService(cfg aws.Config) *EditionJobService {
 	return &EditionJobService{
-		dynamodb: dynamodb,
+		dynamodb: dynamodb.NewFromConfig(cfg),
 	}
 }
 
 func (e *EditionJobService) Create(editionJob *model.EditionJob) error {
-	output, err := e.dynamodb.PutItem(context.TODO(), &dynamodb.PutItemInput{
+	_, err := e.dynamodb.PutItem(context.TODO(), &dynamodb.PutItemInput{
 		TableName: aws.String("clipfy"),
 		Item: map[string]types.AttributeValue{
 			"pk":               &types.AttributeValueMemberS{Value: fmt.Sprintf("EditionJob#%s", editionJob.UserId)},
@@ -39,7 +39,6 @@ func (e *EditionJobService) Create(editionJob *model.EditionJob) error {
 		return err
 	}
 
-	fmt.Println(output)
 	return nil
 }
 

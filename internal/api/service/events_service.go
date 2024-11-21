@@ -14,13 +14,14 @@ type EventsService struct {
 }
 
 type PublishMessageInput struct {
-	Message  string
-	Metadata map[string]string
+	Message        string
+	MessageGroupId string
+	Metadata       map[string]string
 }
 
-func NewEventsService(sns *sns.Client) *EventsService {
+func NewEventsService(cfg aws.Config) *EventsService {
 	return &EventsService{
-		sns: sns,
+		sns: sns.NewFromConfig(cfg),
 	}
 }
 
@@ -28,8 +29,9 @@ func (s *EventsService) Emit(input *PublishMessageInput) error {
 	topicArn := os.Getenv("TOPIC_ARN")
 
 	_, err := s.sns.Publish(context.TODO(), &sns.PublishInput{
-		Message:           &input.Message,
+		Message:           aws.String(input.Message),
 		TopicArn:          aws.String(topicArn),
+		MessageGroupId:    aws.String(input.MessageGroupId),
 		MessageAttributes: buildMetadata(input.Metadata),
 	})
 
@@ -41,6 +43,9 @@ func (s *EventsService) Emit(input *PublishMessageInput) error {
 }
 
 func buildMetadata(metadata map[string]string) map[string]types.MessageAttributeValue {
+	if metadata == nil {
+		return nil
+	}
 	var attributes map[string]types.MessageAttributeValue
 
 	for key, value := range metadata {

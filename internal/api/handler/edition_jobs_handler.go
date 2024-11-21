@@ -9,11 +9,13 @@ import (
 
 type EditionJobsHandler struct {
 	createEditionJob *command.CreateEditionJob
+	listEditionJobs  *command.ListEditionJobs
 }
 
-func NewEditionJobsHandler(createEditionJob *command.CreateEditionJob) *EditionJobsHandler {
+func NewEditionJobsHandler(createEditionJob *command.CreateEditionJob, listEditionJobs *command.ListEditionJobs) *EditionJobsHandler {
 	return &EditionJobsHandler{
 		createEditionJob: createEditionJob,
+		listEditionJobs:  listEditionJobs,
 	}
 }
 
@@ -28,6 +30,17 @@ func (e *EditionJobsHandler) CreateEditionJob(c *gin.Context) {
 	input.UserID = user["sub"].(string)
 
 	output := e.createEditionJob.Execute(&input)
+
+	c.JSON(http.StatusOK, output)
+}
+
+func (e *EditionJobsHandler) ListEditionJobs(c *gin.Context) {
+	user := c.MustGet("user").(jwt.MapClaims)
+	userID := user["sub"].(string)
+
+	output := e.listEditionJobs.Execute(&command.ListEditionJobsInput{
+		UserID: userID,
+	})
 
 	c.JSON(http.StatusOK, output)
 }

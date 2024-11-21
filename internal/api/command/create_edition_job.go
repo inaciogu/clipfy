@@ -4,6 +4,7 @@ import (
 	"clipfy/internal/api/model"
 	"clipfy/internal/api/service"
 	"encoding/json"
+	"fmt"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -26,9 +27,10 @@ type CreateEditionJobOutput struct {
 	Status           string `json:"status"`
 }
 
-func NewCreateEditionJob(service *service.EditionJobService) *CreateEditionJob {
+func NewCreateEditionJob(service *service.EditionJobService, events *service.EventsService) *CreateEditionJob {
 	return &CreateEditionJob{
 		service: service,
+		events:  events,
 	}
 }
 
@@ -52,9 +54,12 @@ func (u *CreateEditionJob) Execute(input *CreateEditionJobInput) *CreateEditionJ
 	if err != nil {
 		return nil
 	}
+	fmt.Println(string(message))
 
 	err = u.events.Emit(&service.PublishMessageInput{
-		Message: string(message),
+		Message:        string(message),
+		MessageGroupId: input.UserID,
+		Metadata:       nil,
 	})
 	if err != nil {
 		return nil
