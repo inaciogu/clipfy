@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sns/types"
+	"github.com/oklog/ulid/v2"
 	"os"
 )
 
@@ -29,10 +30,11 @@ func (s *EventsService) Emit(input *PublishMessageInput) error {
 	topicArn := os.Getenv("TOPIC_ARN")
 
 	_, err := s.sns.Publish(context.TODO(), &sns.PublishInput{
-		Message:           aws.String(input.Message),
-		TopicArn:          aws.String(topicArn),
-		MessageGroupId:    aws.String(input.MessageGroupId),
-		MessageAttributes: buildMetadata(input.Metadata),
+		Message:                aws.String(input.Message),
+		TopicArn:               aws.String(topicArn),
+		MessageGroupId:         aws.String(input.MessageGroupId),
+		MessageDeduplicationId: aws.String(ulid.Make().String()),
+		MessageAttributes:      buildMetadata(input.Metadata),
 	})
 
 	if err != nil {

@@ -29,7 +29,11 @@ func (e *EditionJobsHandler) CreateEditionJob(c *gin.Context) {
 	user := c.MustGet("user").(jwt.MapClaims)
 	input.UserID = user["sub"].(string)
 
-	output := e.createEditionJob.Execute(&input)
+	output, err := e.createEditionJob.Execute(&input)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, output)
 }

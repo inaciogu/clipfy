@@ -6,7 +6,9 @@ import (
 	"github.com/aws/aws-cdk-go/awscdk/v2/awscloudfrontorigins"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awscognito"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsdynamodb"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awslambdaeventsources"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awss3"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awssns"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
@@ -54,6 +56,21 @@ func createBroker(stack awscdk.Stack) *BrokerOutput {
 		Fifo:      jsii.Bool(true),
 	})
 
+	// queue policy
+	queue.AddToResourcePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions: jsii.Strings("sqs:SendMessage"),
+		Effect:  awsiam.Effect_ALLOW,
+		Principals: &[]awsiam.IPrincipal{
+			awsiam.NewServicePrincipal(jsii.String("sns.amazonaws.com"), nil),
+		},
+		Resources: jsii.Strings(*queue.QueueArn()),
+		Conditions: &map[string]interface{}{
+			"StringEquals": map[string]interface{}{
+				"aws:SourceArn": topic.TopicArn(),
+			},
+		},
+	}))
+
 	awssns.NewSubscription(stack, jsii.String("ClipfySubscription"), &awssns.SubscriptionProps{
 		RawMessageDelivery: jsii.Bool(true),
 		Topic:              topic,
@@ -95,6 +112,9 @@ func createFileProcessingLambda(stack awscdk.Stack) awslambdago.GoFunction {
 		FunctionName: jsii.String("clipfy-file-processing"),
 		MemorySize:   jsii.Number(1024),
 		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
+		Layers: &[]awslambda.ILayerVersion{
+			awslambda.LayerVersion_FromLayerVersionArn(stack, jsii.String("ffmpegLayer"), jsii.String("arn:aws:lambda:us-east-1:800352480120:layer:ffmpeg:1")),
+		},
 	})
 
 	return lambda
@@ -223,6 +243,7 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	cognitoLambda := createCoginitoLambda(stack)
 
 	cognito.UserPool.AddTrigger(awscognito.UserPoolOperation_PRE_SIGN_UP(), cognitoLambda, awscognito.LambdaVersion_V1_0)
+	fileProcessing.AddEventSource(awslambdaeventsources.NewSqsEventSource(broker.Queue, &awslambdaeventsources.SqsEventSourceProps{}))
 
 	broker.Topic.GrantPublish(api)
 	broker.Queue.GrantSendMessages(api)

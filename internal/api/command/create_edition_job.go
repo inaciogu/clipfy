@@ -34,8 +34,8 @@ func NewCreateEditionJob(service *service.EditionJobService, events *service.Eve
 	}
 }
 
-func (u *CreateEditionJob) Execute(input *CreateEditionJobInput) *CreateEditionJobOutput {
-	id := ulid.MustNew(ulid.Now(), nil).String()
+func (u *CreateEditionJob) Execute(input *CreateEditionJobInput) (*CreateEditionJobOutput, error) {
+	id := ulid.Make().String()
 	editionJob := &model.EditionJob{
 		ID:               id,
 		WithSubtitles:    input.Subtitle,
@@ -47,12 +47,12 @@ func (u *CreateEditionJob) Execute(input *CreateEditionJobInput) *CreateEditionJ
 
 	err := u.service.Create(editionJob)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	message, err := json.Marshal(editionJob)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	fmt.Println(string(message))
 
@@ -62,7 +62,7 @@ func (u *CreateEditionJob) Execute(input *CreateEditionJobInput) *CreateEditionJ
 		Metadata:       nil,
 	})
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	return &CreateEditionJobOutput{
@@ -70,5 +70,5 @@ func (u *CreateEditionJob) Execute(input *CreateEditionJobInput) *CreateEditionJ
 		SegmentsDuration: editionJob.SegmentsDuration,
 		FileURL:          editionJob.FileURL,
 		Status:           string(editionJob.Status),
-	}
+	}, err
 }
