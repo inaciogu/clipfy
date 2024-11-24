@@ -112,6 +112,7 @@ func createFileProcessingLambda(stack awscdk.Stack) awslambdago.GoFunction {
 		FunctionName: jsii.String("clipfy-file-processing"),
 		MemorySize:   jsii.Number(1024),
 		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
+		Timeout:      awscdk.Duration_Seconds(jsii.Number(60)),
 		Layers: &[]awslambda.ILayerVersion{
 			awslambda.LayerVersion_FromLayerVersionArn(stack, jsii.String("ffmpegLayer"), jsii.String("arn:aws:lambda:us-east-1:800352480120:layer:ffmpeg:1")),
 		},

@@ -1,6 +1,7 @@
-package service
+package common
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -27,6 +28,21 @@ func NewS3Service(cfg aws.Config) *StorageService {
 		client: s3.NewFromConfig(cfg),
 		cfg:    cfg,
 	}
+}
+
+func (s *StorageService) UploadFile(ctx context.Context, bucket, key, contentType string, body []byte) error {
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+		Body:        bytes.NewReader(body),
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to upload file: %v", err)
+	}
+
+	return nil
 }
 
 func (s *StorageService) GeneratePresignedUploadURL(input *GeneratePresignedUploadURLInput) (*GeneratePresignedUploadURLOutput, error) {

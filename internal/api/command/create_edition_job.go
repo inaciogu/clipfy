@@ -3,6 +3,7 @@ package command
 import (
 	"clipfy/internal/api/model"
 	"clipfy/internal/api/service"
+	"clipfy/internal/common"
 	"encoding/json"
 	"fmt"
 	"github.com/oklog/ulid/v2"
@@ -10,7 +11,7 @@ import (
 
 type CreateEditionJob struct {
 	service *service.EditionJobService
-	events  *service.EventsService
+	events  *common.EventsService
 }
 
 type CreateEditionJobInput struct {
@@ -27,7 +28,7 @@ type CreateEditionJobOutput struct {
 	Status           string `json:"status"`
 }
 
-func NewCreateEditionJob(service *service.EditionJobService, events *service.EventsService) *CreateEditionJob {
+func NewCreateEditionJob(service *service.EditionJobService, events *common.EventsService) *CreateEditionJob {
 	return &CreateEditionJob{
 		service: service,
 		events:  events,
@@ -56,7 +57,7 @@ func (u *CreateEditionJob) Execute(input *CreateEditionJobInput) (*CreateEdition
 	}
 	fmt.Println(string(message))
 
-	err = u.events.Emit(&service.PublishMessageInput{
+	err = u.events.Emit(&common.PublishMessageInput{
 		Message:        string(message),
 		MessageGroupId: input.UserID,
 		Metadata:       nil,

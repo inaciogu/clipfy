@@ -5,6 +5,7 @@ import (
 	"clipfy/internal/api/handler"
 	"clipfy/internal/api/middleware"
 	"clipfy/internal/api/service"
+	"clipfy/internal/common"
 	"context"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -24,9 +25,9 @@ func init() {
 	}
 
 	router := gin.Default()
-	storageService := service.NewS3Service(awsCfg)
+	storageService := common.NewS3Service(awsCfg)
 	editionJobsService := service.NewEditionJobService(awsCfg)
-	eventsService := service.NewEventsService(awsCfg)
+	eventsService := common.NewEventsService(awsCfg)
 
 	uploadCommand := command.NewUploadFileCommand(storageService)
 	createEditionJob := command.NewCreateEditionJob(editionJobsService, eventsService)

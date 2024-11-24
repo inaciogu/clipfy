@@ -1,12 +1,12 @@
 package command
 
 import (
-	"clipfy/internal/api/service"
+	"clipfy/internal/common"
 	"fmt"
 )
 
 type GenUploadFileURLCommand struct {
-	storage *service.StorageService
+	storage *common.StorageService
 }
 
 type GenUploadFileURLCommandInput struct {
@@ -19,14 +19,14 @@ type GenUploadFileURLCommandOutput struct {
 	UploadURL string `json:"upload_url"`
 }
 
-func NewUploadFileCommand(storage *service.StorageService) *GenUploadFileURLCommand {
+func NewUploadFileCommand(storage *common.StorageService) *GenUploadFileURLCommand {
 	return &GenUploadFileURLCommand{
 		storage: storage,
 	}
 }
 
 func (u *GenUploadFileURLCommand) Execute(input *GenUploadFileURLCommandInput) *GenUploadFileURLCommandOutput {
-	output, err := u.storage.GeneratePresignedUploadURL(&service.GeneratePresignedUploadURLInput{
+	output, err := u.storage.GeneratePresignedUploadURL(&common.GeneratePresignedUploadURLInput{
 		FileName: fmt.Sprintf("%s/%s", input.UserID, input.FileName),
 	})
 	if err != nil {
