@@ -45,6 +45,7 @@ func createBroker(stack awscdk.Stack) *BrokerOutput {
 		QueueName:                 jsii.String("clipfy-queue.fifo"),
 		Fifo:                      jsii.Bool(true),
 		ContentBasedDeduplication: jsii.Bool(true),
+		VisibilityTimeout:         awscdk.Duration_Seconds(jsii.Number(60)),
 		DeadLetterQueue: &awssqs.DeadLetterQueue{
 			Queue:           dlq,
 			MaxReceiveCount: jsii.Number(3),

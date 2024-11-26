@@ -1,11 +1,11 @@
 package common
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"io"
 	"os"
 )
 
@@ -30,12 +30,11 @@ func NewS3Service(cfg aws.Config) *StorageService {
 	}
 }
 
-func (s *StorageService) UploadFile(ctx context.Context, bucket, key, contentType string, body []byte) error {
+func (s *StorageService) UploadFile(ctx context.Context, bucket, key string, body io.Reader) error {
 	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(bucket),
-		Key:         aws.String(key),
-		ContentType: aws.String(contentType),
-		Body:        bytes.NewReader(body),
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+		Body:   body,
 	})
 
 	if err != nil {
