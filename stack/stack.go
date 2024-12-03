@@ -253,6 +253,7 @@ func NewClipfyStack(scope constructs.Construct, id string, props *ClipfyStackPro
 	storage.Bucket.GrantReadWrite(fileProcessing, nil)
 	storage.Bucket.GrantWrite(api, nil, nil)
 	table.GrantReadWriteData(api)
+	table.GrantReadWriteData(fileProcessing)
 
 	api.AddEnvironment(jsii.String("USER_POOL_ID"), cognito.UserPool.UserPoolId(), nil)
 	api.AddEnvironment(jsii.String("USER_POOL_CLIENT_ID"), cognito.UserPoolClientId, nil)

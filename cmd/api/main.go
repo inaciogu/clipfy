@@ -28,13 +28,16 @@ func init() {
 	storageService := common.NewS3Service(awsCfg)
 	editionJobsService := service.NewEditionJobService(awsCfg)
 	eventsService := common.NewEventsService(awsCfg)
+	segmentsService := service.NewSegmentsService(awsCfg)
 
 	uploadCommand := command.NewUploadFileCommand(storageService)
 	createEditionJob := command.NewCreateEditionJob(editionJobsService, eventsService)
 	listEditionJobs := command.NewListEditionJobs(editionJobsService)
+	listSegments := command.NewListSegmentsCommand(segmentsService)
 
 	uploadHandler := handler.NewUploadHandler(uploadCommand)
 	editionJobsHandler := handler.NewEditionJobsHandler(createEditionJob, listEditionJobs)
+	segmentsHandler := handler.NewSegmentsHandler(listSegments)
 
 	router.Use(middleware.AuthMiddleware())
 
@@ -48,6 +51,7 @@ func init() {
 	})
 	router.POST("/edition-jobs", editionJobsHandler.CreateEditionJob)
 	router.GET("/edition-jobs", editionJobsHandler.ListEditionJobs)
+	router.GET("/segments/:parent_id", segmentsHandler.ListSegments)
 
 	ginLambda = ginadapter.New(router)
 }

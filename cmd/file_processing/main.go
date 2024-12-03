@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"clipfy/internal/api/command"
+	"clipfy/internal/api/service"
 	"clipfy/internal/common"
 	"context"
 	"encoding/json"
@@ -24,6 +26,7 @@ type EventBody struct {
 }
 
 var storageService *common.StorageService
+var segmentsService *service.SegmentsService
 
 func init() {
 	fmt.Println("Starting file_processing lambda")
@@ -35,6 +38,7 @@ func init() {
 	}
 
 	storageService = common.NewS3Service(cfg)
+	segmentsService = service.NewSegmentsService(cfg)
 }
 
 func Handler(ctx context.Context, event events.SQSEvent) error {
@@ -47,6 +51,7 @@ func Handler(ctx context.Context, event events.SQSEvent) error {
 		}
 
 		outputDir := "/tmp"
+		cdnURL := os.Getenv("CDN_URL")
 
 		fmt.Println("Output dir", outputDir)
 		fmt.Println("Processing job", body.ID)
@@ -78,6 +83,8 @@ func Handler(ctx context.Context, event events.SQSEvent) error {
 			fmt.Println("Error reading output dir", err)
 			return err
 		}
+
+		var segments []*command.CreateSegmentsInput
 		for _, file := range files {
 			fmt.Println("uploading file", file.Name())
 			stream, err := os.Open(fmt.Sprintf("%s/%s", outputDir, file.Name()))
@@ -94,12 +101,20 @@ func Handler(ctx context.Context, event events.SQSEvent) error {
 
 			stream.Close()
 
+			segments = append(segments, &command.CreateSegmentsInput{
+				ParentID:    body.ID,
+				ParentName:  fileName,
+				SegmentName: file.Name(),
+				SegmentURL:  fmt.Sprintf("%s/%s/%s", cdnURL, body.UserID, file.Name()),
+			})
+
 			fmt.Println("File uploaded successfully")
 		}
 
-		err = os.RemoveAll(outputDir)
+		_, err = command.NewCreateSegmentsCommand(segmentsService).Execute(segments)
+
 		if err != nil {
-			fmt.Println("Error removing temp dir", err)
+			fmt.Println("Error creating segments", err)
 			return err
 		}
 
