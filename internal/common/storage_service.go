@@ -3,10 +3,11 @@ package common
 import (
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"io"
 	"os"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type StorageService struct {
@@ -60,6 +61,19 @@ func (s *StorageService) GeneratePresignedUploadURL(input *GeneratePresignedUplo
 		UploadURL: presigned.URL,
 		FileURL:   buildURL(input.FileName),
 	}, nil
+}
+
+func (s *StorageService) DeleteFile(ctx context.Context, key string, bucket string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Key:    aws.String(key),
+		Bucket: aws.String(bucket),
+	})
+
+	if err != nil {
+		return fmt.Errorf("unable to delete file %s: %v", key, err)
+	}
+
+	return nil
 }
 
 func buildURL(key string) string {

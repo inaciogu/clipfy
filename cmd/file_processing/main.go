@@ -8,12 +8,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/config"
 )
 
 type EventBody struct {
@@ -118,6 +119,11 @@ func Handler(ctx context.Context, event events.SQSEvent) error {
 			return err
 		}
 
+		err = storageService.DeleteFile(ctx, os.Getenv("BUCKET_NAME"), fmt.Sprintf("%s/%s", body.UserID, fileName))
+
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
